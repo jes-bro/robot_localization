@@ -214,8 +214,10 @@ class ParticleFilter(Node):
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
-
+        t1_to_o = []
+        t2_to_o = []
         # TODO: modify particles using delta
+
 
 
     def resample_particles(self):
@@ -234,7 +236,7 @@ class ParticleFilter(Node):
             theta: the angle relative to the robot frame for each corresponding reading 
         """
         # TODO: implement this
-        pass
+        
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
