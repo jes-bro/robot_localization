@@ -16,7 +16,7 @@ import math
 import time
 import numpy as np
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper
+from helper_functions import TFHelper, draw_random_sample
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 
@@ -82,7 +82,6 @@ class ParticleFilter(Node):
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
 
         # TODO: define additional constants if needed
-
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
         self.create_subscription(PoseWithCovarianceStamped, 'initialpose', self.update_initial_pose, 10)
@@ -218,6 +217,7 @@ class ParticleFilter(Node):
 
         # TODO: modify particles using delta
 
+
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
             The weights stored with each particle should define the probability that a particular
@@ -258,16 +258,17 @@ class ParticleFilter(Node):
         x = xy_theta[0]
         y = xy_theta[1]
         theta = xy_theta[2]
-        x_distribution = np.random.normal(x, xy_standard_deviation, num_points)
-        y_distribution = np.random.normal(y, xy_standard_deviation, num_points)
-        theta_distribution = distribution_scale * np.random.normal(theta, theta_standard_deviation, num_points)
+        self.xs = np.random.normal(x, xy_standard_deviation, num_points)
+        self.ys = np.random.normal(y, xy_standard_deviation, num_points)
+        self.thetas = distribution_scale * np.random.normal(theta, theta_standard_deviation, num_points)
+        self.particle_cloud = list(zip(self.xs, self.ys, self.thetas))
         self.normalize_particles()
         self.update_robot_pose()
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        # TODO: implement this
-        self.particle_cloud = np.linalg.norm(self.particle_cloud) #L1 norm - implementation depends on shape of cloud
+        # TODO: implement thisdraw_random_sample(self.x_distrobution, )
+        self.particle_cloud = np.linalg.norm(self.particle_cloud)
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
