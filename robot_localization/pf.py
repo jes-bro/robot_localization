@@ -189,7 +189,7 @@ class ParticleFilter(Node):
         # just to get started we will fix the robot's pose to always be at the origin
         self.robot_pose = Pose()
         xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
-        self.robot_pose.position = xy_theta[0:2]
+        self.robot_pose.position = Point(x=xy_theta[0], y=xy_theta[1], z=0.0)
         self.robot_pose.orientation = xy_theta[2]
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,

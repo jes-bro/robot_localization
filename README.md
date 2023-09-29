@@ -8,3 +8,7 @@ In your ROS package create a README.md file to hold your project writeup. Your w
     What if any challenges did you face along the way?
     What would you do to improve your project if you had more time?
     Did you learn any interesting lessons for future robotic programming projects? These could relate to working on robotics projects in teams, working on more open-ended (and longer term) problems, or any other relevant topic.
+
+
+ros2 launch robot_localization launch_map_server.py map_yaml:=./gauntlet.yaml
+RUN FROM robot_localization/maps
