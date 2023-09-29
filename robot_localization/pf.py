@@ -15,8 +15,9 @@ from rclpy.duration import Duration
 import math
 import time
 import numpy as np
+from numpy import sin, cos
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper, draw_random_sample
+from helper_functions import TFHelper, draw_random_sample, stamped_transform_to_pose
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 
@@ -204,6 +205,7 @@ class ParticleFilter(Node):
         """
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         # compute the change in x,y,theta since our last update
+        # what is this?
         if self.current_odom_xy_theta:
             old_odom_xy_theta = self.current_odom_xy_theta
             delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0],
@@ -214,10 +216,18 @@ class ParticleFilter(Node):
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
-        t1_to_o = []
-        t2_to_o = []
-        # TODO: modify particles using delta
+        
+        t1 = self.current_odom_xy_theta
+        t1_theta = t1[2]
+        t2 = self.odom_pose
+        t2_theta = t2[2]
+        t1_to_o = np.array([sin(t1_theta) -cos(t1_theta)], [sin(t1_theta), cos(t1_theta)])
+        t2_to_o = np.array([sin(t2_theta) -cos(t2_theta)], [sin(t2_theta), cos(t2_theta)])
+        t2_in_1 = np.linalg.inv(t1_to_o)*t2_to_o
 
+        for particle in self.particle_cloud:
+                p1_in_o = stamped_transform_to_pose(particle)
+                p2_in_o = p1_in_o * t2_in_1
 
 
     def resample_particles(self):
