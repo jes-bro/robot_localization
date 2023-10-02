@@ -161,12 +161,12 @@ class ParticleFilter(Node):
         elif not self.particle_cloud:
             # now that we have all of the necessary transforms we can update the particle cloud
             self.initialize_particle_cloud(msg.header.stamp)
-        elif self.moved_far_enough_to_update(new_odom_xy_theta):
+        # elif self.moved_far_enough_to_update(new_odom_xy_theta):
             # we have moved far enough to do an update!
-            self.update_particles_with_odom()    # update based on odometry
-            self.update_particles_with_laser(r, theta)   # update based on laser scan
-            self.update_robot_pose()                # update robot's pose based on particles
-            self.resample_particles()               # resample particles to focus on areas of high density
+            # self.update_particles_with_odom()    # update based on odometry
+            # self.update_particles_with_laser(r, theta)   # update based on laser scan
+            # self.update_robot_pose()                # update robot's pose based on particles
+            # self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -190,7 +190,13 @@ class ParticleFilter(Node):
         self.robot_pose = Pose()
         xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.robot_pose.position = Point(x=xy_theta[0], y=xy_theta[1], z=0.0)
-        self.robot_pose.orientation = xy_theta[2]
+        orientation = quaternion_from_euler(0.0, 0.0, xy_theta[2])
+        self.robot_pose.orientation = Quaternion()
+        self.robot_pose.orientation.x = orientation[0]
+        self.robot_pose.orientation.y = orientation[1]
+        self.robot_pose.orientation.z = orientation[2]
+        self.robot_pose.orientation.w = orientation[3]
+        
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
@@ -273,20 +279,29 @@ class ParticleFilter(Node):
         self.xs = np.random.normal(x, xy_standard_deviation, num_points)
         self.ys = np.random.normal(y, xy_standard_deviation, num_points)
         self.thetas = distribution_scale * np.random.normal(theta, theta_standard_deviation, num_points)
-        self.particle_cloud = list(zip(self.xs, self.ys, self.thetas))
+        particles_attributes = list(zip(self.xs, self.ys, self.thetas))
+        for particle_attributes in particles_attributes:
+            particle = Particle()
+            particle.x = particle_attributes[0]
+            particle.y = particle_attributes[1]
+            particle.theta = particle_attributes[2]
+            particle.w = 1.0
+            self.particle_cloud.append(particle)
         self.normalize_particles()
         self.update_robot_pose()
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
         # TODO: implement thisdraw_random_sample(self.x_distrobution, )
-        self.particle_cloud = np.linalg.norm(self.particle_cloud)
+        # self.particle_cloud = np.linalg.norm(self.particle_cloud)
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
         msg.header.frame_id = self.map_frame
         msg.header.stamp = timestamp
         for p in self.particle_cloud:
+            print("As pose")
+            print(p.as_pose())
             msg.particles.append(Nav2Particle(pose=p.as_pose(), weight=p.w))
         self.particle_pub.publish(msg)
 
