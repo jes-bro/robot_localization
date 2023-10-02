@@ -49,6 +49,16 @@ class Particle(object):
 
     # TODO: define additional helper functions if needed
 
+    def make_homogeneous_transform(self):
+        transform = np.array([[cos(self.theta), -sin(self.theta), self.x], [sin(self.theta), cos(self.theta), self.y], [0, 0, 1]])
+        return transform
+    
+    def update_pose_from_transform(self, transform):
+        self.theta = np.arctan2(transform[1, 0], transform[0, 0])
+        self.x = transform[0, 2]
+        self.y = transform[1, 2]
+
+
 class ParticleFilter(Node):
     """ The class that represents a Particle Filter ROS Node
         Attributes list:
@@ -161,9 +171,9 @@ class ParticleFilter(Node):
         elif not self.particle_cloud:
             # now that we have all of the necessary transforms we can update the particle cloud
             self.initialize_particle_cloud(msg.header.stamp)
-        # elif self.moved_far_enough_to_update(new_odom_xy_theta):
+        elif self.moved_far_enough_to_update(new_odom_xy_theta):
             # we have moved far enough to do an update!
-            # self.update_particles_with_odom()    # update based on odometry
+            self.update_particles_with_odom()    # update based on odometry
             # self.update_particles_with_laser(r, theta)   # update based on laser scan
             # self.update_robot_pose()                # update robot's pose based on particles
             # self.resample_particles()               # resample particles to focus on areas of high density
@@ -223,17 +233,17 @@ class ParticleFilter(Node):
             self.current_odom_xy_theta = new_odom_xy_theta
             return
         
-        t1 = self.current_odom_xy_theta
+        t1 = old_odom_xy_theta
         t1_theta = t1[2]
-        t2 = self.odom_pose
+        t2 = new_odom_xy_theta
         t2_theta = t2[2]
-        t1_to_o = np.array([sin(t1_theta) -cos(t1_theta)], [sin(t1_theta), cos(t1_theta)])
-        t2_to_o = np.array([sin(t2_theta) -cos(t2_theta)], [sin(t2_theta), cos(t2_theta)])
-        t2_in_1 = np.linalg.inv(t1_to_o)*t2_to_o
+        t1_to_o = np.array([[cos(t1_theta), -sin(t1_theta), t1[0]], [sin(t1_theta), cos(t1_theta), t1[1]], [0, 0, 1]])
+        t2_to_o = np.array([[cos(t2_theta), -sin(t2_theta), t2[0]], [sin(t2_theta), cos(t2_theta), t2[1]], [0, 0, 1]])
+        t2_in_1 = np.linalg.inv(t1_to_o) @ t2_to_o
 
         for particle in self.particle_cloud:
-                p1_in_o = stamped_transform_to_pose(particle)
-                p2_in_o = p1_in_o * t2_in_1
+            particle_transform = particle.make_homogeneous_transform()
+            particle.update_pose_from_transform(particle_transform @ t2_in_1)
 
 
     def resample_particles(self):
