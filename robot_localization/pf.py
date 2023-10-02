@@ -272,36 +272,38 @@ class ParticleFilter(Node):
         xy_standard_deviation = 0.1
         theta_standard_deviation = 0.7
         distribution_scale = 10
-        num_points = 100
+        num_points = self.n_particles
         x = xy_theta[0]
         y = xy_theta[1]
         theta = xy_theta[2]
         self.xs = np.random.normal(x, xy_standard_deviation, num_points)
         self.ys = np.random.normal(y, xy_standard_deviation, num_points)
         self.thetas = distribution_scale * np.random.normal(theta, theta_standard_deviation, num_points)
-        particles_attributes = list(zip(self.xs, self.ys, self.thetas))
-        for particle_attributes in particles_attributes:
-            particle = Particle()
-            particle.x = particle_attributes[0]
-            particle.y = particle_attributes[1]
-            particle.theta = particle_attributes[2]
-            particle.w = 1.0
-            self.particle_cloud.append(particle)
+        for i in range(self.n_particles):
+            self.particle_cloud.append(Particle(self.xs[i], self.ys[i], self.thetas[i], 1/self.n_particles))
+        # particles_attributes = list(zip(self.xs, self.ys, self.thetas))
+        # for particle_attributes in particles_attributes:
+        #     particle = Particle()
+        #     particle.x = particle_attributes[0]
+        #     particle.y = particle_attributes[1]
+        #     particle.theta = particle_attributes[2]
+        #     particle.w = 1/len(particle_attributes)
+        #     self.particle_cloud.append(particle)
         self.normalize_particles()
         self.update_robot_pose()
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
         # TODO: implement thisdraw_random_sample(self.x_distrobution, )
-        # self.particle_cloud = np.linalg.norm(self.particle_cloud)
+        weigtht_sum = sum([particle.w for particle in self.particle_cloud])
+        for particle in self.particle_cloud:
+            particle.w = particle.w / weigtht_sum
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
         msg.header.frame_id = self.map_frame
         msg.header.stamp = timestamp
         for p in self.particle_cloud:
-            print("As pose")
-            print(p.as_pose())
             msg.particles.append(Nav2Particle(pose=p.as_pose(), weight=p.w))
         self.particle_pub.publish(msg)
 
