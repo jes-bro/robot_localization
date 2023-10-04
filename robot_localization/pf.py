@@ -253,7 +253,12 @@ class ParticleFilter(Node):
             function draw_random_sample in helper_functions.py.
         """
         # make sure the distribution is normalized
-        self.normalize_particles()
+        confidences = []
+        for particle in self.particle_cloud:
+            confidences.append(particle.w)
+        max_confidence_ind = max(confidences)
+
+
         # TODO: fill out the rest of the implementation
 
     def update_particles_with_laser(self, r, theta):
@@ -261,7 +266,36 @@ class ParticleFilter(Node):
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
+
+        num_of_laserscans = len(r)
         # TODO: implement this
+        for particle in self.particle_cloud:
+            accumulated_error = 0.0
+            for j, laserscan_range in enumerate(r):
+                # Extract laser scan theta
+                laserscan_theta = theta[j]
+
+                # Convert to cartesian
+                laserscan_x = r*cos(laserscan_theta)
+                laserscan_y = r*sin(laserscan_theta)
+
+                # Add laserscan position to particle position
+                particle_frame_laserscan_x = particle.x + laserscan_x
+                particle_frame_laserscan_y = particle.y + laserscan_y
+
+                # Get the particle's laserscan position distance to nearest occupancy position
+                closest_occupancy_coords = self.occupancy_field.get_closest_obstacle_distance(particle_frame_laserscan_x, particle_frame_laserscan_y)
+                closest_occupancy_x, closest_occupancy_y = closest_occupancy_coords[0], closest_occupancy_coords[1]
+                x_delta = particle.x - closest_occupancy_x
+                y_delta = particle.y - closest_occupancy_y
+                error = np.sqrt(x_delta**2 + y_delta**2)
+                accumulated_error += error
+
+            particle.w = accumulated_error / num_of_laserscans
+
+        self.normalize_particles() 
+        for particle in self.particle_cloud:
+            particle.w = 1- particle.w
         
 
     def update_initial_pose(self, msg):
