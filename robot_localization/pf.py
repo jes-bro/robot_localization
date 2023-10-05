@@ -249,16 +249,12 @@ class ParticleFilter(Node):
             particle is selected in the resampling step.  You may want to make use of the given helper
             function draw_random_sample in helper_functions.py.
         """
-        # make sure the distribution is normalized
-        
-        confidences = []
+        choices = self.particle_cloud
+        num_best_particles = 4
+        probabilities = []
         for particle in self.particle_cloud:
-            confidences.append(particle.w)
-        max_confidence_particle_index = confidences.index(max(confidences))
-
-
-
-        # TODO: fill out the rest of the implementation
+            probabilities.append(particle.w)
+        self.particle_cloud = draw_random_sample(choices, probabilities, num_best_particles)
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -330,7 +326,7 @@ class ParticleFilter(Node):
         #     particle.y = particle_attributes[1]
         #     particle.theta = particle_attributes[2]
         #     particle.w = 1/len(particle_attributes)
-        #     self.particle_cloud.append(particle)
+        #     self.particle_cloud.append(particle)        # make sure the distribution is normalized
         self.normalize_particles()
         self.update_robot_pose()
 
