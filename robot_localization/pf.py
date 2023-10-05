@@ -197,15 +197,12 @@ class ParticleFilter(Node):
 
         # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
         # just to get started we will fix the robot's pose to always be at the origin
-        self.robot_pose = Pose()
-        xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
-        self.robot_pose.position = Point(x=xy_theta[0], y=xy_theta[1], z=0.0)
-        orientation = quaternion_from_euler(0.0, 0.0, xy_theta[2])
-        self.robot_pose.orientation = Quaternion()
-        self.robot_pose.orientation.x = orientation[0]
-        self.robot_pose.orientation.y = orientation[1]
-        self.robot_pose.orientation.z = orientation[2]
-        self.robot_pose.orientation.w = orientation[3]
+        confidences = []
+        for particle in self.particle_cloud:
+            confidences.append(particle.w)
+        max_confidence_particle_index = confidences.index(max(confidences))
+        best_particle = self.particle_cloud[max_confidence_particle_index]
+        self.robot_pose = best_particle.as_pose()
         
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
@@ -253,10 +250,12 @@ class ParticleFilter(Node):
             function draw_random_sample in helper_functions.py.
         """
         # make sure the distribution is normalized
+        
         confidences = []
         for particle in self.particle_cloud:
             confidences.append(particle.w)
-        max_confidence_ind = max(confidences)
+        max_confidence_particle_index = confidences.index(max(confidences))
+
 
 
         # TODO: fill out the rest of the implementation
@@ -268,7 +267,6 @@ class ParticleFilter(Node):
         """
 
         num_of_laserscans = len(r)
-        # TODO: implement this
         for particle in self.particle_cloud:
             accumulated_error = 0.0
             for j, laserscan_range in enumerate(r):
