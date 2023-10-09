@@ -174,9 +174,9 @@ class ParticleFilter(Node):
         elif self.moved_far_enough_to_update(new_odom_xy_theta):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
-            # self.update_particles_with_laser(r, theta)   # update based on laser scan
-            # self.update_robot_pose()                # update robot's pose based on particles
-            # self.resample_particles()               # resample particles to focus on areas of high density
+            self.update_particles_with_laser(r, theta)   # update based on laser scan
+            self.update_robot_pose()                # update robot's pose based on particles
+            self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -250,11 +250,12 @@ class ParticleFilter(Node):
             function draw_random_sample in helper_functions.py.
         """
         choices = self.particle_cloud
-        num_best_particles = 4
         probabilities = []
+        print(f"len particle cloud: {len(self.particle_cloud)}")
         for particle in self.particle_cloud:
             probabilities.append(particle.w)
-        self.particle_cloud = draw_random_sample(choices, probabilities, num_best_particles)
+        print(f"len probabilities: {len(probabilities)}")
+        self.particle_cloud = draw_random_sample(choices, probabilities, self.n_particles)
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -262,30 +263,36 @@ class ParticleFilter(Node):
             theta: the angle relative to the robot frame for each corresponding reading 
         """
 
-        num_of_laserscans = len(r)
         for particle in self.particle_cloud:
             accumulated_error = 0.0
+            num_of_laserscans = len(r)
             for j, laserscan_range in enumerate(r):
                 # Extract laser scan theta
                 laserscan_theta = theta[j]
 
                 # Convert to cartesian
-                laserscan_x = r*cos(laserscan_theta)
-                laserscan_y = r*sin(laserscan_theta)
+                laserscan_x = laserscan_range*cos(laserscan_theta)
+                laserscan_y = laserscan_range*sin(laserscan_theta)
 
                 # Add laserscan position to particle position
                 particle_frame_laserscan_x = particle.x + laserscan_x
                 particle_frame_laserscan_y = particle.y + laserscan_y
 
                 # Get the particle's laserscan position distance to nearest occupancy position
-                closest_occupancy_coords = self.occupancy_field.get_closest_obstacle_distance(particle_frame_laserscan_x, particle_frame_laserscan_y)
-                closest_occupancy_x, closest_occupancy_y = closest_occupancy_coords[0], closest_occupancy_coords[1]
-                x_delta = particle.x - closest_occupancy_x
-                y_delta = particle.y - closest_occupancy_y
-                error = np.sqrt(x_delta**2 + y_delta**2)
-                accumulated_error += error
-
-            particle.w = accumulated_error / num_of_laserscans
+                error = self.occupancy_field.get_closest_obstacle_distance(particle_frame_laserscan_x, particle_frame_laserscan_y)
+                # closest_occupancy_x, closest_occupancy_y = closest_occupancy_coords[0], closest_occupancy_coords[1]
+                # x_delta = particle.x - closest_occupancy_x
+                # y_delta = particle.y - closest_occupancy_y
+                # error = np.sqrt(x_delta**2 + y_delta**2)
+                if (np.isnan(float('nan'))):
+                    num_of_laserscans -= 1
+                else:
+                    accumulated_error += error
+            
+            if (num_of_laserscans == 0):
+                particle.w = 1.0
+            else:
+                particle.w = accumulated_error / num_of_laserscans
 
         self.normalize_particles() 
         for particle in self.particle_cloud:
