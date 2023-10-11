@@ -3,6 +3,7 @@
 """ This is the starter code for the robot localization project """
 
 import rclpy
+from typing import List
 from threading import Thread
 from rclpy.time import Time
 from rclpy.node import Node
@@ -110,7 +111,7 @@ class ParticleFilter(Node):
         # this is the current scan that our run_loop should process
         self.scan_to_process = None
         # your particle cloud will go here
-        self.particle_cloud = []
+        self.particle_cloud: List[Particle] = []
 
         self.current_odom_xy_theta = []
         self.occupancy_field = OccupancyField(self)
@@ -176,9 +177,9 @@ class ParticleFilter(Node):
             self.update_particles_with_odom()    # update based on odometry
             self.update_particles_with_laser(r, theta)   # update based on laser scan
             self.update_robot_pose()                # update robot's pose based on particles
-            self.resample_particles()               # resample particles to focus on areas of high density
+            #self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
-        self.publish_particles(msg.header.stamp)
+        self.publish_particles(self.last_scan_timestamp)
 
     def moved_far_enough_to_update(self, new_odom_xy_theta):
         return math.fabs(new_odom_xy_theta[0] - self.current_odom_xy_theta[0]) > self.d_thresh or \
@@ -197,6 +198,7 @@ class ParticleFilter(Node):
 
         # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
         # just to get started we will fix the robot's pose to always be at the origin
+
         confidences = []
         for particle in self.particle_cloud:
             confidences.append(particle.w)
@@ -234,9 +236,9 @@ class ParticleFilter(Node):
         t1_theta = t1[2]
         t2 = new_odom_xy_theta
         t2_theta = t2[2]
-        t1_to_o = np.array([[cos(t1_theta), -sin(t1_theta), t1[0]], [sin(t1_theta), cos(t1_theta), t1[1]], [0, 0, 1]])
-        t2_to_o = np.array([[cos(t2_theta), -sin(t2_theta), t2[0]], [sin(t2_theta), cos(t2_theta), t2[1]], [0, 0, 1]])
-        t2_in_1 = np.linalg.inv(t1_to_o) @ t2_to_o
+        t1_to_odom = np.array([[cos(t1_theta), -sin(t1_theta), t1[0]], [sin(t1_theta), cos(t1_theta), t1[1]], [0, 0, 1]])
+        t2_to_odom = np.array([[cos(t2_theta), -sin(t2_theta), t2[0]], [sin(t2_theta), cos(t2_theta), t2[1]], [0, 0, 1]])
+        t2_in_1 = np.linalg.inv(t1_to_odom) @ t2_to_odom
 
         for particle in self.particle_cloud:
             particle_transform = particle.make_homogeneous_transform()
@@ -249,54 +251,33 @@ class ParticleFilter(Node):
             particle is selected in the resampling step.  You may want to make use of the given helper
             function draw_random_sample in helper_functions.py.
         """
-        choices = self.particle_cloud
+        self.normalize_particles()
         probabilities = []
-        print(f"len particle cloud: {len(self.particle_cloud)}")
         for particle in self.particle_cloud:
             probabilities.append(particle.w)
-        print(f"len probabilities: {len(probabilities)}")
-        self.particle_cloud = draw_random_sample(choices, probabilities, self.n_particles)
+        self.particle_cloud = draw_random_sample(self.particle_cloud, probabilities, self.n_particles)
+        self.normalize_particles()
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
-
+    
         for particle in self.particle_cloud:
-            accumulated_error = 0.0
-            num_of_laserscans = len(r)
-            for j, laserscan_range in enumerate(r):
-                # Extract laser scan theta
-                laserscan_theta = theta[j]
+            accumulated_error = 0
+            for range_index, range in enumerate(r):
+                x = range * cos(theta[range_index])
+                y = range * sin(theta[range_index])
+                range_pose = np.array([x, y, 1]).T
+                particle_transform = particle.make_homogeneous_transform()
+                range_in_map = particle_transform @ range_pose
+                #print(f"range in map: {range_in_map}")
+                error = self.occupancy_field.get_closest_obstacle_distance(range_in_map[0], range_in_map[1])
+                accumulated_error += error
+            particle.w = 1 / accumulated_error
+        self.normalize_particles()
 
-                # Convert to cartesian
-                laserscan_x = laserscan_range*cos(laserscan_theta)
-                laserscan_y = laserscan_range*sin(laserscan_theta)
-
-                # Add laserscan position to particle position
-                particle_frame_laserscan_x = particle.x + laserscan_x
-                particle_frame_laserscan_y = particle.y + laserscan_y
-
-                # Get the particle's laserscan position distance to nearest occupancy position
-                error = self.occupancy_field.get_closest_obstacle_distance(particle_frame_laserscan_x, particle_frame_laserscan_y)
-                # closest_occupancy_x, closest_occupancy_y = closest_occupancy_coords[0], closest_occupancy_coords[1]
-                # x_delta = particle.x - closest_occupancy_x
-                # y_delta = particle.y - closest_occupancy_y
-                # error = np.sqrt(x_delta**2 + y_delta**2)
-                if (np.isnan(float('nan'))):
-                    num_of_laserscans -= 1
-                else:
-                    accumulated_error += error
-            
-            if (num_of_laserscans == 0):
-                particle.w = 1.0
-            else:
-                particle.w = accumulated_error / num_of_laserscans
-
-        self.normalize_particles() 
-        for particle in self.particle_cloud:
-            particle.w = 1- particle.w
         
 
     def update_initial_pose(self, msg):
@@ -314,35 +295,33 @@ class ParticleFilter(Node):
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
         # TODO create particles
-        xy_standard_deviation = 0.1
-        theta_standard_deviation = 0.7
-        distribution_scale = 10
+        self.xy_standard_deviation = 0.5 # 0.1
+        self.theta_standard_deviation = 0.7
+        self.distribution_scale = 10
         num_points = self.n_particles
         x = xy_theta[0]
         y = xy_theta[1]
         theta = xy_theta[2]
-        self.xs = np.random.normal(x, xy_standard_deviation, num_points)
-        self.ys = np.random.normal(y, xy_standard_deviation, num_points)
-        self.thetas = distribution_scale * np.random.normal(theta, theta_standard_deviation, num_points)
+
+        # self.best_particle = Particle(x, y, theta, 1.0)
+
+        self.xs = np.random.normal(x, self.xy_standard_deviation, num_points)
+        self.ys = np.random.normal(y, self.xy_standard_deviation, num_points)
+        self.thetas = self.distribution_scale * np.random.normal(theta, self.theta_standard_deviation, num_points)
         for i in range(self.n_particles):
             self.particle_cloud.append(Particle(self.xs[i], self.ys[i], self.thetas[i], 1/self.n_particles))
-        # particles_attributes = list(zip(self.xs, self.ys, self.thetas))
-        # for particle_attributes in particles_attributes:
-        #     particle = Particle()
-        #     particle.x = particle_attributes[0]
-        #     particle.y = particle_attributes[1]
-        #     particle.theta = particle_attributes[2]
-        #     particle.w = 1/len(particle_attributes)
-        #     self.particle_cloud.append(particle)        # make sure the distribution is normalized
+
         self.normalize_particles()
         self.update_robot_pose()
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
         # TODO: implement thisdraw_random_sample(self.x_distrobution, )
-        weigtht_sum = sum([particle.w for particle in self.particle_cloud])
+        weighted_sum = 0
         for particle in self.particle_cloud:
-            particle.w = particle.w / weigtht_sum
+            weighted_sum += particle.w
+        for particle in self.particle_cloud:
+            particle.w = particle.w / weighted_sum
 
     def publish_particles(self, timestamp):
         msg = ParticleCloud()
