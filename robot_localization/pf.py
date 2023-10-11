@@ -92,6 +92,7 @@ class ParticleFilter(Node):
 
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
+        self.nan_penalty = 20
 
         # TODO: define additional constants if needed
 
@@ -157,7 +158,7 @@ class ParticleFilter(Node):
                 # we will never get this transform, since it is before our oldest one
                 self.scan_to_process = None
             return
-        
+        t_start = time.time()
         (r, theta) = self.transform_helper.convert_scan_to_polar_in_robot_frame(msg, self.base_frame)
         print("r[0]={0}, theta[0]={1}".format(r[0], theta[0]))
         # clear the current scan so that we can process the next one
@@ -176,10 +177,14 @@ class ParticleFilter(Node):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
             self.update_particles_with_laser(r, theta)   # update based on laser scan
+            self.publish_particles(self.last_scan_timestamp)
             self.update_robot_pose()                # update robot's pose based on particles
-            #self.resample_particles()               # resample particles to focus on areas of high density
+            self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
         self.publish_particles(self.last_scan_timestamp)
+
+        
+        print(f"elapsed: {time.time() - t_start}")
 
     def moved_far_enough_to_update(self, new_odom_xy_theta):
         return math.fabs(new_odom_xy_theta[0] - self.current_odom_xy_theta[0]) > self.d_thresh or \
@@ -256,6 +261,13 @@ class ParticleFilter(Node):
         for particle in self.particle_cloud:
             probabilities.append(particle.w)
         self.particle_cloud = draw_random_sample(self.particle_cloud, probabilities, self.n_particles)
+        for particle in self.particle_cloud:
+            x_noise = np.random.normal(0.0, self.xy_standard_deviation)
+            y_noise = np.random.normal(0.0, self.xy_standard_deviation)
+            theta_noise = self.distribution_scale * np.random.normal(0.0, self.theta_standard_deviation)
+            particle.x += x_noise
+            particle.y += y_noise
+            particle.theta += theta_noise
         self.normalize_particles()
 
     def update_particles_with_laser(self, r, theta):
@@ -273,9 +285,17 @@ class ParticleFilter(Node):
                 particle_transform = particle.make_homogeneous_transform()
                 range_in_map = particle_transform @ range_pose
                 #print(f"range in map: {range_in_map}")
+                if np.isnan(range_in_map[0]) or np.isnan(range_in_map[1]):
+                    print("isnan")
+                    continue
                 error = self.occupancy_field.get_closest_obstacle_distance(range_in_map[0], range_in_map[1])
-                accumulated_error += error
+                if np.isnan(error):
+                    accumulated_error += self.nan_penalty
+                else:
+                    accumulated_error += error
+            assert not np.isnan(accumulated_error)
             particle.w = 1 / accumulated_error
+        #print([particle.w for particle in self.particle_cloud])
         self.normalize_particles()
 
         
@@ -292,11 +312,11 @@ class ParticleFilter(Node):
             xy_theta: a triple consisting of the mean x, y, and theta (yaw) to initialize the
                       particle cloud around.  If this input is omitted, the odometry will be used """
         if xy_theta is None:
-            xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
+            xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose) 
         self.particle_cloud = []
         # TODO create particles
-        self.xy_standard_deviation = 0.5 # 0.1
-        self.theta_standard_deviation = 0.7
+        self.xy_standard_deviation = 0.2 # 0.1
+        self.theta_standard_deviation = 0.02
         self.distribution_scale = 10
         num_points = self.n_particles
         x = xy_theta[0]
@@ -304,10 +324,10 @@ class ParticleFilter(Node):
         theta = xy_theta[2]
 
         # self.best_particle = Particle(x, y, theta, 1.0)
-
-        self.xs = np.random.normal(x, self.xy_standard_deviation, num_points)
-        self.ys = np.random.normal(y, self.xy_standard_deviation, num_points)
-        self.thetas = self.distribution_scale * np.random.normal(theta, self.theta_standard_deviation, num_points)
+        noise_std = 0.001
+        self.xs = np.random.normal(x, noise_std, num_points)
+        self.ys = np.random.normal(y, noise_std, num_points)
+        self.thetas = self.distribution_scale * np.random.normal(theta, noise_std, num_points)
         for i in range(self.n_particles):
             self.particle_cloud.append(Particle(self.xs[i], self.ys[i], self.thetas[i], 1/self.n_particles))
 
