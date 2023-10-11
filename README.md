@@ -12,3 +12,6 @@ In your ROS package create a README.md file to hold your project writeup. Your w
 ros2 launch neato2_gazebo neato_gauntlet_world.py
 ros2 launch robot_localization launch_map_server.py map_yaml:=./gauntlet.yaml
 RUN FROM robot_localization/maps
+
+# Robot Localization
+The goal of robot localization is to find a robot's position relative to a global map frame. For example, if you drop a robot randomly in a room and turn it on, how does the robot know where it is in the room? Or another example, if a robot knows where its starting position is and starts moving, how do we account for the error in the wheel/positional sensors to get a reliable position reading of the robot relative ot the room? Using a technique like a particle filter and laser scan data from a robot, we can find the robots location relative to a global frame without knowing where it started!
