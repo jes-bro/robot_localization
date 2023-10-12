@@ -77,6 +77,110 @@ def initialize_particle_cloud(self, timestamp, xy_theta=None):
         self.update_robot_pose()
 ```
 
+
+#### Particle location update 
+To calculate the particle's new location, we can create a transform that represents the robots position at a time t1 and the robots position at a time t2, construct a transform that represents the position at t2 in the t1 frame, and use that transform to take the particle's position from the t1 frame to the t2 reference frame. 
+
+The change in odometry from t1 to t2 is computed as a difference between the current odometry $(x, y, \theta)$ and the previous odometry:
+
+$$ \Delta x = x_{\text{new}} - x_{\text{old}} $$
+
+$$ \Delta y = y_{\text{new}} - y_{\text{old}} $$
+
+$$ \Delta \theta = \theta_{\text{new}} - \theta_{\text{old}} $$ 
+
+The transformation matrices for the old and new odometry are:
+
+$$ 
+T_{1} = \begin{bmatrix}
+\cos(\theta_{\text{old}}) & -\sin(\theta_{\text{old}}) & x_{\text{old}} \\
+\sin(\theta_{\text{old}}) & \cos(\theta_{\text{old}}) & y_{\text{old}} \\
+0 & 0 & 1
+\end{bmatrix}
+$$
+
+$$
+T_{2} = \begin{bmatrix}
+\cos(\theta_{\text{new}}) & -\sin(\theta_{\text{new}}) & x_{\text{new}} \\
+\sin(\theta_{\text{new}}) & \cos(\theta_{\text{new}}) & y_{\text{new}} \\
+0 & 0 & 1
+\end{bmatrix}
+$$
+
+The relative transformation (t2 in t1) can be computed by multiplying the inverse of the old transformation matrix with the new transformation matrix:
+
+$$
+T_{\text{2 in 1}} = T_{1}^{-1} \cdot T_{2}
+$$
+
+Each particle is then updated by multiplying its own transformation matrix with the relative transformation matrix:
+
+$$
+T_{\text{particle in t2}} = T_{\text{particle in t1}} \cdot T_{\text{2 in 1}}
+$$
+
+Where,
+
+$$
+T_{\text{particle in t1}} = \begin{bmatrix}
+\cos(\theta_{\text{particle in t1}}) & -\sin(\theta_{\text{particle in t1}}) & x_{\text{particle in t1}} \\
+\sin(\theta_{\text{particle in t1}}) & \cos(\theta_{\text{particle in t1}}) & y_{\text{particle in t1}} \\
+0 & 0 & 1
+\end{bmatrix}
+$$
+
+The new state of the particle can be extracted from the updated transformation matrix.
+
+Here is the Python implementation: TODO: Add comments to this code
+
+```python
+    def update_particles_with_odom(self):
+        """ Update the particles using the newly given odometry pose.
+            The function computes the value delta which is a tuple (x,y,theta)
+            that indicates the change in position and angle between the odometry
+            when the particles were last updated and the current odometry.
+        """
+        new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
+        # compute the change in x,y,theta since our last update
+        if self.current_odom_xy_theta:
+            old_odom_xy_theta = self.current_odom_xy_theta
+            delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0],
+                     new_odom_xy_theta[1] - self.current_odom_xy_theta[1],
+                     new_odom_xy_theta[2] - self.current_odom_xy_theta[2])
+
+            self.current_odom_xy_theta = new_odom_xy_theta
+        else:
+            self.current_odom_xy_theta = new_odom_xy_theta
+            return
+        
+        t1 = old_odom_xy_theta
+        t1_theta = t1[2]
+        t2 = new_odom_xy_theta
+        t2_theta = t2[2]
+        t1_to_odom = np.array([[cos(t1_theta), -sin(t1_theta), t1[0]], [sin(t1_theta), cos(t1_theta), t1[1]], [0, 0, 1]])
+        t2_to_odom = np.array([[cos(t2_theta), -sin(t2_theta), t2[0]], [sin(t2_theta), cos(t2_theta), t2[1]], [0, 0, 1]])
+        t2_in_1 = np.linalg.inv(t1_to_odom) @ t2_to_odom
+
+        for particle in self.particle_cloud:
+            particle_transform = particle.make_homogeneous_transform()
+            particle.update_pose_from_transform(particle_transform @ t2_in_1)
+```
+
+#### Particle weight update
+```
+```
+
+
+In each iteration of the run loop, the following functions are called:
+
+
+            self.update_particles_with_odom()            # update particle poses based on odometry
+            self.update_particles_with_laser(r, theta)   # update particle weights based on laser scan
+            self.publish_particles(self.last_scan_timestamp)
+            self.update_robot_pose()                     # update robot's estimated pose based on particles
+            self.resample_particles()                    # resample particles to focus on areas of high density
+
+
 In each iteration of the run loop, the following functions are called:
 
 
