@@ -371,3 +371,7 @@ One Python specific challenge that arose was dealing with NaN edgecases in our c
 ## Extensions 
 
 If we had more time, or more realistically had spent our time better over the course of the project, we could have implemented more optimizations to reduce latency. Specifically, we could have used matrix multiplications in place of for-loops. We also could have used Jax to port processes to the GPU and we could have plotted the timing differences between doing computations on CPU vs GPU. We could have also used Jax to just in time compile (JIT) functions to make them faster. We could have plotted other metrics as well and wrote unit tests to ensure that our filter was working as expected in a more quantitative and less empirical way. We could have also tried the kidnapped robot problem, where we don't know where it starts initially in the map. After that extension, we could have mapped a larger area.
+
+## Lessons
+
+Some of the lessons we learned included communicating about teaming issues as they happen rather than letting them fester. We also learned that scaffolding and planning can make it easier to accomplish goals on time. In the future we will provide more scaffolding. Additionally, we learned that asking for help and office hours are very useful. And that working through problems and math on paper helps a lot with the code implementation and checking to make sure that your programs are working as expected. 
