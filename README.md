@@ -19,16 +19,77 @@ The goal of robot localization is to find a robot's position relative to a globa
 
 ## Particle Filter
 
-A particle filter works by using particles distributed around a global map to converge on the robots position. Here are the steps:
+## How we solved the problem
 
-1. Distribute particles each with a random x position, y position, and rotation value around a global map.
-2. Gather laser scan data from the robots laser scanner
-3. Map each laser scan onto each particle and calculate an confidence for each particle depending on how the mapped laser scan matches with the occupancy grid of the global map. **\***
-4.
+In order to figure out where the robot actually is, we can't just interpret sensor data directly, because sensors have error and the world has uncertainty; therefore, sensor readings may not be an accurate indicator of where the robot is in space. 
 
-Lets dive into each step.
+To solve this problem, we created a particle filter that localizes the robot in a 2D map of its environment. 
 
-At the beginning of each run, we must initialize particles to our map frame. A default approach is to evenly cover the entire global frame with particles with random rotations to ensure that we are somewhat close to the NEATOs starting position. However, in our scenario we are given the starting position of the NEATO, so a better approach is to concentrate more of the particles around this starting position. In order to get a spread on our particles, we can add noise
+A particle filter consists of a particle cloud. We created a particle cloud that consists of particles, or 2D vectors that represents a potential location of the robot. You could think of it as a hypothesis that indicates a potential place the robot could be. Each particle has an associated weight that reflects a confidence. The confidence indicates how probable it is that the particle is at the robot's true location. We then resample the particles and create a new cloud, with higher-weighted particles being more likely to be chosen. This creates an accurate filter that localizes the robot in 2D space. 
+
+### Particle Filter Steps
+
+Our particle filter script adhered to this series of steps:
+
+1. The particle cloud is initialized around a given pose. If no initial pose is provided, it uses odometry data to create a particle cloud around where the wheel encoders suggest the robot is in space.
+2. As new encoder/odometry and laser scan data are received, the particles locations and weights are updated, making use of this new data. The odometry data is used to update the particle locations and the laser scan data is used to update the particle weights. 
+3. The particles are resampled according to their weights. Particles with higher weights are more likely to be resampled / are sampled more often. This is good because those particles are the most likely to represent the robots true state. 
+4. The robot's estimated pose is updated based on the best particle / the particle with the highest confidence. 
+5. Steps 2-4 repeat each time new odometry and laser scan data is recieved. 
+
+
+### To Go More In-Depth
+
+### How the particle filter works
+
+We use ROS 2 to handle sensor data retrieval and particle publishing. 
+
+#### Initialization
+
+We create 3 normal distributions, each centered around the x, y, and theta values of the robots initial pose, respectively. To generate the normal distributions we use numpy.random.normal: 
+
+```python
+def initialize_particle_cloud(self, timestamp, xy_theta=None):
+        """ Initialize the particle cloud.
+            Arguments
+            xy_theta: a triple consisting of the mean x, y, and theta (yaw) to initialize the
+                      particle cloud around.  If this input is omitted, the odometry will be used """
+        # Initialize xy_theta / robot's initial pose to odom pose if no initial pose is provided
+        if xy_theta is None:
+            xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose) 
+        # Initialize particle cloud
+        self.particle_cloud = []
+        # Create standard deviations for xy distributions
+        xy_standard_deviation = 0.002 # 0.1
+        # Create theta standard deviation for theta distribution
+        theta_standard_deviation = 0.001
+        # Set scale for theta distribution. We do this to make it more steep and less wide. 
+        self.distribution_scale = 10
+        # xy_theta is a tuple, so we need to extract each component of the robot's location
+        x = xy_theta[0]
+        y = xy_theta[1]
+        theta = xy_theta[2]
+        # Create distributions / sample n_particles from them
+        self.xs = np.random.normal(x, x, self.n_particles)
+        self.ys = np.random.normal(y, xy_standard_deviation, self.n_particles)
+        self.thetas = self.distribution_scale * np.random.normal(theta, theta_standard_deviation, self.n_particles)
+        # Create particle objects using these randomly generated xy_theta values and append them to the particle cloud
+        for i in range(self.n_particles):
+            self.particle_cloud.append(Particle(self.xs[i], self.ys[i], self.thetas[i], 1/self.n_particles))
+        # Normalize the particle weights
+        self.normalize_particles()
+        # Update the robot's pose
+        self.update_robot_pose()
+```
+
+In each iteration of the run loop, the following functions are called:
+
+
+            self.update_particles_with_odom()            # update particle poses based on odometry
+            self.update_particles_with_laser(r, theta)   # update particle weights based on laser scan
+            self.publish_particles(self.last_scan_timestamp)
+            self.update_robot_pose()                     # update robot's estimated pose based on particles
+            self.resample_particles()                    # resample particles to focus on areas of high density
 
 ## Design Decisions
 
