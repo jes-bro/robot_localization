@@ -76,9 +76,18 @@ def initialize_particle_cloud(self, timestamp, xy_theta=None):
         # Update the robot's pose
         self.update_robot_pose()
 ```
+After initialization, the run loop starts. 
+In each iteration of the run loop, the following functions are called:
 
 
-#### Particle location update 
+            self.update_particles_with_odom()            # update particle poses based on odometry
+            self.update_particles_with_laser(r, theta)   # update particle weights based on laser scan
+            self.publish_particles(self.last_scan_timestamp)
+            self.update_robot_pose()                     # update robot's estimated pose based on particles
+            self.resample_particles()                    # resample particles to focus on areas of high density
+
+
+#### Particle location update (Update particles with odom function)
 To calculate the particle's new location, we can create a transform that represents the robots position at a time t1 and the robots position at a time t2, construct a transform that represents the position at t2 in the t1 frame, and use that transform to take the particle's position from the t1 frame to the t2 reference frame. 
 
 The change in odometry from t1 to t2 is computed as a difference between the current odometry $(x, y, \theta)$ and the previous odometry:
@@ -166,22 +175,150 @@ Here is the Python implementation: TODO: Add comments to this code
             particle.update_pose_from_transform(particle_transform @ t2_in_1)
 ```
 
-#### Particle weight update
+#### Particle weight update (Update particles with laser function)
+
+Each particle is updated using the distance readings to obstacles $r$ and angles $\theta$ relative to the robot's baselink frame. For each reading, the $x$ and $y$ coordinates of the obstacle relative to the particle are calculated using polar to Cartesian conversion:
+
+$$ x = r \cos(\theta) $$
+
+$$ y = r \sin(\theta) $$
+
+
+Here, $r$ is the distance reading to an obstacle and $\theta$ is the angle relative to the robot frame for each corresponding reading.
+
+The obstacle's position is transformed to the map frame using the particle's homogeneous transformation matrix:
+
+```math
+T_{\text{particle in t2}} = T_{\text{particle in t1}} \cdot T_{\text{2 in 1}}
 ```
+```math
+T_{\text{range in map}} = T_{\text{particle}} \cdot \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
+```
+Where,
+
+```math
+T_{\text{particle}} = \begin{bmatrix}
+\cos(\theta_{\text{particle}}) & -\sin(\theta_{\text{particle}}) & x_{\text{particle}} \\
+\sin(\theta_{\text{particle}}) & \cos(\theta_{\text{particle}}) & y_{\text{particle}} \\
+0 & 0 & 1
+\end{bmatrix}
 ```
 
+The error is computed as the distance to the closest obstacle from the transformed position. If the error is not a number (NaN), a penalty is added to the accumulated error:
 
-In each iteration of the run loop, the following functions are called:
+```math
+\text{if }\text{isnan}(\text{error}) \Rightarrow \text{accumulated\_error} += \text{nan\_penalty}
+```
 
+```math
+\text{else} \Rightarrow \text{accumulated\_error} += \text{error}
+```
 
-            self.update_particles_with_odom()            # update particle poses based on odometry
-            self.update_particles_with_laser(r, theta)   # update particle weights based on laser scan
-            self.publish_particles(self.last_scan_timestamp)
-            self.update_robot_pose()                     # update robot's estimated pose based on particles
-            self.resample_particles()                    # resample particles to focus on areas of high density
+The weight of each particle is updated based on the inverse of the accumulated error. The idea is that particles with lower error (meaning they align better with the laser scan data) will have higher weights:
 
+```math
+w_{\text{particle}} = \frac{1}{\text{accumulated\_error}}
+```
 
-In each iteration of the run loop, the following functions are called:
+Finally, the particle weights are normalized to ensure they form a valid probability distribution that sums up to 1. This is done across all particles in the particle cloud:
+
+```math
+\text{normalized weight} = \frac{w_{\text{particle}}}{\sum_{i=1}^N w_{i}}
+```
+
+where $N$ is the total number of particles in the particle cloud.
+
+This process helps in reevaluating the importance (weight) of each particle in representing the robot's state given the new sensor (laser scan) data. The particles are then resampled based on these updated weights in the resampling step.
+
+```python
+    def update_particles_with_laser(self, r, theta):
+        """ Updates the particle weights in response to the scan data
+            r: the distance readings to obstacles
+            theta: the angle relative to the robot frame for each corresponding reading 
+        """
+    
+        for particle in self.particle_cloud:
+            accumulated_error = 0
+            for range_index, range in enumerate(r):
+                x = range * cos(theta[range_index])
+                y = range * sin(theta[range_index])
+                range_pose = np.array([x, y, 1]).T
+                particle_transform = particle.make_homogeneous_transform()
+                range_in_map = particle_transform @ range_pose
+                #print(f"range in map: {range_in_map}")
+                if np.isnan(range_in_map[0]) or np.isnan(range_in_map[1]):
+                    print("isnan")
+                    continue
+                error = self.occupancy_field.get_closest_obstacle_distance(range_in_map[0], range_in_map[1])
+                if np.isnan(error):
+                    accumulated_error += self.nan_penalty
+                else:
+                    accumulated_error += error
+            assert not np.isnan(accumulated_error)
+            particle.w = 1 / accumulated_error
+        #print([particle.w for particle in self.particle_cloud])
+        self.normalize_particles()
+```
+#### Robot pose estimate (update robot pose function)
+The way we calculate the robots estimated pose is pretty straightforward: We simply iterate through all of the particles and their weights and find the particle with the highest confidence to use as our estimated robot position. 
+
+Here is our function that does this: 
+
+```python
+def update_robot_pose(self):
+        """ Update the estimate of the robot's pose given the updated particles.
+            There are two logical methods for this:
+                (1): compute the mean pose
+                (2): compute the most likely pose (i.e. the mode of the distribution)
+        """
+        # first make sure that the particle weights are normalized
+        self.normalize_particles()
+
+        # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
+        # just to get started we will fix the robot's pose to always be at the origin
+
+        confidences = []
+        for particle in self.particle_cloud:
+            confidences.append(particle.w)
+        max_confidence_particle_index = confidences.index(max(confidences))
+        best_particle = self.particle_cloud[max_confidence_particle_index]
+        self.robot_pose = best_particle.as_pose()
+        
+        if hasattr(self, 'odom_pose'):
+            self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
+                                                            self.odom_pose)
+        else:
+            self.get_logger().warn("Can't set map->odom transform since no odom data received")
+```
+#### Particle Resampling
+Here is our function for resampling the particles: 
+
+```python
+def resample_particles(self):
+        """ Resample the particles according to the new particle weights.
+            The weights stored with each particle should define the probability that a particular
+            particle is selected in the resampling step.  You may want to make use of the given helper
+            function draw_random_sample in helper_functions.py.
+        """
+        noise_std = 0.001
+        self.normalize_particles()
+        probabilities = []
+        for particle in self.particle_cloud:
+            probabilities.append(particle.w)
+        self.particle_cloud = draw_random_sample(self.particle_cloud, probabilities, self.n_particles)
+        for particle in self.particle_cloud:
+            x_noise = np.random.normal(0.0, noise_std)
+            y_noise = np.random.normal(0.0, noise_std)
+            theta_noise = self.distribution_scale * np.random.normal(0.0, noise_std)
+            particle.x += x_noise
+            particle.y += y_noise
+            particle.theta += theta_noise
+        self.normalize_particles()
+```
+
+As we had mentioned before, we resample from a distribution where particles with higher weights are more likely to be sampled. We also add Gaussian noise to this step to account for uncertainty in the positions. 
+
+In each iteration of the run loop, the functions are called in this order:
 
 
             self.update_particles_with_odom()            # update particle poses based on odometry
