@@ -41,7 +41,7 @@ We use ROS 2 to handle sensor data retrieval and particle publishing.
 
 #### Initialization
 
-We create 3 normal distributions, each centered around the x, y, and theta values of the robots initial pose, respectively. To generate the normal distributions we use numpy.random.normal: 
+We create 3 normal distributions, each centered around the x, y, and theta values of the robots initial pose, respectively, and sampled from them to create the initial particle cloud. To generate the normal distributions we use numpy.random.normal: 
 
 ```python
 def initialize_particle_cloud(self, timestamp, xy_theta=None):
