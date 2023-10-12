@@ -17,8 +17,6 @@ RUN FROM robot_localization/maps
 
 The goal of robot localization is to find a robot's position relative to a global map frame. For example, if you drop a robot randomly in a room and turn it on, how does the robot know where it is in the room? Or another example, if a robot knows where its starting position is and starts moving, how do we account for the error in the wheel/positional sensors to get a reliable position reading of the robot relative ot the room? Using a technique like a particle filter and laser scan data from a robot, we can find the robots location relative to a global frame without knowing where it started!
 
-## Particle Filter
-
 ## How we solved the problem
 
 In order to figure out where the robot actually is, we can't just interpret sensor data directly, because sensors have error and the world has uncertainty; therefore, sensor readings may not be an accurate indicator of where the robot is in space. 
@@ -37,10 +35,7 @@ Our particle filter script adhered to this series of steps:
 4. The robot's estimated pose is updated based on the best particle / the particle with the highest confidence. 
 5. Steps 2-4 repeat each time new odometry and laser scan data is recieved. 
 
-
-### To Go More In-Depth
-
-### How the particle filter works
+### How the particle filter works (more in-depth)
 
 We use ROS 2 to handle sensor data retrieval and particle publishing. 
 
