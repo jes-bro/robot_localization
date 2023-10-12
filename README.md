@@ -14,4 +14,20 @@ ros2 launch robot_localization launch_map_server.py map_yaml:=./gauntlet.yaml
 RUN FROM robot_localization/maps
 
 # Robot Localization
+
 The goal of robot localization is to find a robot's position relative to a global map frame. For example, if you drop a robot randomly in a room and turn it on, how does the robot know where it is in the room? Or another example, if a robot knows where its starting position is and starts moving, how do we account for the error in the wheel/positional sensors to get a reliable position reading of the robot relative ot the room? Using a technique like a particle filter and laser scan data from a robot, we can find the robots location relative to a global frame without knowing where it started!
+
+## Particle Filter
+
+A particle filter works by using particles distributed around a global map to converge on the robots position. Here are the steps:
+
+1. Distribute particles each with a random x position, y position, and rotation value around a global map.
+2. Gather laser scan data from the robots laser scanner
+3. Map each laser scan onto each particle and calculate an confidence for each particle depending on how the mapped laser scan matches with the occupancy grid of the global map. **\***
+4.
+
+Lets dive into each step.
+
+At the beginning of each run, we must initialize particles to our map frame. A default approach is to evenly cover the entire global frame with particles with random rotations to ensure that we are somewhat close to the NEATOs starting position. However, in our scenario we are given the starting position of the NEATO, so a better approach is to concentrate more of the particles around this starting position. In order to get a spread on our particles, we can add noise
+
+##
