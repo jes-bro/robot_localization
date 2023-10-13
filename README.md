@@ -375,3 +375,7 @@ If we had more time, or more realistically had spent our time better over the co
 ## Lessons
 
 Some of the lessons we learned included communicating about teaming issues as they happen rather than letting them fester. We also learned that scaffolding and planning can make it easier to accomplish goals on time. In the future we will provide more scaffolding. Additionally, we learned that asking for help and office hours are very useful. And that working through problems and math on paper helps a lot with the code implementation and checking to make sure that your programs are working as expected. 
+
+![Alt Text](https://media.giphy.com/media/vFKqnCdLPNOKc/giphy.gif)
+![Alt Text](./media/2.gif)
+![Alt Text](./media/1.png)
