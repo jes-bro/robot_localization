@@ -149,29 +149,37 @@ Here is the Python implementation: TODO: Add comments to this code
             that indicates the change in position and angle between the odometry
             when the particles were last updated and the current odometry.
         """
+        # Convert odom pose object to x, y, theta tuple
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         # compute the change in x,y,theta since our last update
         if self.current_odom_xy_theta:
+        # Update old odom pose
             old_odom_xy_theta = self.current_odom_xy_theta
             delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0],
                      new_odom_xy_theta[1] - self.current_odom_xy_theta[1],
                      new_odom_xy_theta[2] - self.current_odom_xy_theta[2])
-
+        # Update new odom pose
             self.current_odom_xy_theta = new_odom_xy_theta
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
-        
+        # Relabeling for the sake of making the code look more like math
         t1 = old_odom_xy_theta
+        # Index 2 in tuple is theta
         t1_theta = t1[2]
         t2 = new_odom_xy_theta
         t2_theta = t2[2]
+        # Transformation matrix with rotation (upper left) and translation right hand column, first two rows) for t1 pose
         t1_to_odom = np.array([[cos(t1_theta), -sin(t1_theta), t1[0]], [sin(t1_theta), cos(t1_theta), t1[1]], [0, 0, 1]])
+        # Transformation matrix with rotation (upper left) and translation right hand column, first two rows) for t2 pose
         t2_to_odom = np.array([[cos(t2_theta), -sin(t2_theta), t2[0]], [sin(t2_theta), cos(t2_theta), t2[1]], [0, 0, 1]])
+        # Create t2 in t1 transform
         t2_in_1 = np.linalg.inv(t1_to_odom) @ t2_to_odom
-
+        # Apply transform to all particles
         for particle in self.particle_cloud:
+            # Make transform for each particle 
             particle_transform = particle.make_homogeneous_transform()
+            # Apply transform to each particle
             particle.update_pose_from_transform(particle_transform @ t2_in_1)
 ```
 
