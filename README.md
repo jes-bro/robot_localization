@@ -19,29 +19,29 @@ The goal of robot localization is to find a robot's position relative to a globa
 
 ## How we solved the problem
 
-In order to figure out where the robot actually is, we can't just interpret sensor data directly, because sensors have error and the world has uncertainty; therefore, sensor readings may not be an accurate indicator of where the robot is in space. 
+In order to figure out where the robot actually is, we can't just interpret sensor data directly, because sensors have error and the world has uncertainty; therefore, sensor readings may not be an accurate indicator of where the robot is in space.
 
-To solve this problem, we created a particle filter that localizes the robot in a 2D map of its environment. 
+To solve this problem, we created a particle filter that localizes the robot in a 2D map of its environment.
 
-A particle filter consists of a particle cloud. We created a particle cloud that consists of particles, or 2D vectors that represents a potential location of the robot. You could think of it as a hypothesis that indicates a potential place the robot could be. Each particle has an associated weight that reflects a confidence. The confidence indicates how probable it is that the particle is at the robot's true location. We then resample the particles and create a new cloud, with higher-weighted particles being more likely to be chosen. This creates an accurate filter that localizes the robot in 2D space. 
+A particle filter consists of a particle cloud. We created a particle cloud that consists of particles, or 2D vectors that represents a potential location of the robot. You could think of it as a hypothesis that indicates a potential place the robot could be. Each particle has an associated weight that reflects a confidence. The confidence indicates how probable it is that the particle is at the robot's true location. We then resample the particles and create a new cloud, with higher-weighted particles being more likely to be chosen. This creates an accurate filter that localizes the robot in 2D space.
 
 ### Particle Filter Steps
 
 Our particle filter script adhered to this series of steps:
 
 1. The particle cloud is initialized around a given pose. If no initial pose is provided, it uses odometry data to create a particle cloud around where the wheel encoders suggest the robot is in space.
-2. As new encoder/odometry and laser scan data are received, the particles locations and weights are updated, making use of this new data. The odometry data is used to update the particle locations and the laser scan data is used to update the particle weights. 
-3. The particles are resampled according to their weights. Particles with higher weights are more likely to be resampled / are sampled more often. This is good because those particles are the most likely to represent the robots true state. 
-4. The robot's estimated pose is updated based on the best particle / the particle with the highest confidence. 
-5. Steps 2-4 repeat each time new odometry and laser scan data is recieved. 
+2. As new encoder/odometry and laser scan data are received, the particles locations and weights are updated, making use of this new data. The odometry data is used to update the particle locations and the laser scan data is used to update the particle weights.
+3. The particles are resampled according to their weights. Particles with higher weights are more likely to be resampled / are sampled more often. This is good because those particles are the most likely to represent the robots true state.
+4. The robot's estimated pose is updated based on the best particle / the particle with the highest confidence.
+5. Steps 2-4 repeat each time new odometry and laser scan data is recieved.
 
 ### How the particle filter works (more in-depth)
 
-We use ROS 2 to handle sensor data retrieval and particle publishing. 
+We use ROS 2 to handle sensor data retrieval and particle publishing.
 
 #### Initialization
 
-We create 3 normal distributions, each centered around the x, y, and theta values of the robots initial pose, respectively, and sampled from them to create the initial particle cloud. To generate the normal distributions we use numpy.random.normal: 
+We create 3 normal distributions, each centered around the x, y, and theta values of the robots initial pose, respectively, and sampled from them to create the initial particle cloud. To generate the normal distributions we use numpy.random.normal:
 
 ```python
 def initialize_particle_cloud(self, timestamp, xy_theta=None):
@@ -51,14 +51,14 @@ def initialize_particle_cloud(self, timestamp, xy_theta=None):
                       particle cloud around.  If this input is omitted, the odometry will be used """
         # Initialize xy_theta / robot's initial pose to odom pose if no initial pose is provided
         if xy_theta is None:
-            xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose) 
+            xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         # Initialize particle cloud
         self.particle_cloud = []
         # Create standard deviations for xy distributions
         xy_standard_deviation = 0.002 # 0.1
         # Create theta standard deviation for theta distribution
         theta_standard_deviation = 0.001
-        # Set scale for theta distribution. We do this to make it more steep and less wide. 
+        # Set scale for theta distribution. We do this to make it more steep and less wide.
         self.distribution_scale = 10
         # xy_theta is a tuple, so we need to extract each component of the robot's location
         x = xy_theta[0]
@@ -76,9 +76,9 @@ def initialize_particle_cloud(self, timestamp, xy_theta=None):
         # Update the robot's pose
         self.update_robot_pose()
 ```
-After initialization, the run loop starts. 
-In each iteration of the run loop, the following functions are called:
 
+After initialization, the run loop starts.
+In each iteration of the run loop, the following functions are called:
 
             self.update_particles_with_odom()            # update particle poses based on odometry
             self.update_particles_with_laser(r, theta)   # update particle weights based on laser scan
@@ -86,21 +86,21 @@ In each iteration of the run loop, the following functions are called:
             self.update_robot_pose()                     # update robot's estimated pose based on particles
             self.resample_particles()                    # resample particles to focus on areas of high density
 
-
 #### Particle location update (Update particles with odom function)
-To calculate the particle's new location, we can create a transform that represents the robots position at a time t1 and the robots position at a time t2, construct a transform that represents the position at t2 in the t1 frame, and use that transform to take the particle's position from the t1 frame to the t2 reference frame. 
+
+To calculate the particle's new location, we can create a transform that represents the robots position at a time t1 and the robots position at a time t2, construct a transform that represents the position at t2 in the t1 frame, and use that transform to take the particle's position from the t1 frame to the t2 reference frame.
 
 The change in odometry from t1 to t2 is computed as a difference between the current odometry $(x, y, \theta)$ and the previous odometry:
 
-$$ \Delta x = x_{\text{new}} - x_{\text{old}} $$
+$$ \Delta x = x*{\text{new}} - x*{\text{old}} $$
 
-$$ \Delta y = y_{\text{new}} - y_{\text{old}} $$
+$$ \Delta y = y*{\text{new}} - y*{\text{old}} $$
 
-$$ \Delta \theta = \theta_{\text{new}} - \theta_{\text{old}} $$ 
+$$ \Delta \theta = \theta*{\text{new}} - \theta*{\text{old}} $$
 
 The transformation matrices for the old and new odometry are:
 
-$$ 
+$$
 T_{1} = \begin{bmatrix}
 \cos(\theta_{\text{old}}) & -\sin(\theta_{\text{old}}) & x_{\text{old}} \\
 \sin(\theta_{\text{old}}) & \cos(\theta_{\text{old}}) & y_{\text{old}} \\
@@ -161,7 +161,7 @@ Here is the Python implementation: TODO: Add comments to this code
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
-        
+
         t1 = old_odom_xy_theta
         t1_theta = t1[2]
         t2 = new_odom_xy_theta
@@ -183,7 +183,6 @@ $$ x = r \cos(\theta) $$
 
 $$ y = r \sin(\theta) $$
 
-
 Here, $r$ is the distance reading to an obstacle and $\theta$ is the angle relative to the robot frame for each corresponding reading.
 
 The obstacle's position is transformed to the map frame using the particle's homogeneous transformation matrix:
@@ -191,9 +190,11 @@ The obstacle's position is transformed to the map frame using the particle's hom
 ```math
 T_{\text{particle in t2}} = T_{\text{particle in t1}} \cdot T_{\text{2 in 1}}
 ```
+
 ```math
 T_{\text{range in map}} = T_{\text{particle}} \cdot \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
 ```
+
 Where,
 
 ```math
@@ -234,9 +235,9 @@ This process helps in reevaluating the importance (weight) of each particle in r
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
-            theta: the angle relative to the robot frame for each corresponding reading 
+            theta: the angle relative to the robot frame for each corresponding reading
         """
-    
+
         for particle in self.particle_cloud:
             accumulated_error = 0
             for range_index, range in enumerate(r):
@@ -259,10 +260,12 @@ This process helps in reevaluating the importance (weight) of each particle in r
         #print([particle.w for particle in self.particle_cloud])
         self.normalize_particles()
 ```
-#### Robot pose estimate (update robot pose function)
-The way we calculate the robots estimated pose is pretty straightforward: We simply iterate through all of the particles and their weights and find the particle with the highest confidence to use as our estimated robot position. 
 
-Here is our function that does this: 
+#### Robot pose estimate (update robot pose function)
+
+The way we calculate the robots estimated pose is pretty straightforward: We simply iterate through all of the particles and their weights and find the particle with the highest confidence to use as our estimated robot position.
+
+Here is our function that does this:
 
 ```python
 def update_robot_pose(self):
@@ -283,15 +286,17 @@ def update_robot_pose(self):
         max_confidence_particle_index = confidences.index(max(confidences))
         best_particle = self.particle_cloud[max_confidence_particle_index]
         self.robot_pose = best_particle.as_pose()
-        
+
         if hasattr(self, 'odom_pose'):
             self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                             self.odom_pose)
         else:
             self.get_logger().warn("Can't set map->odom transform since no odom data received")
 ```
+
 #### Particle Resampling
-Here is our function for resampling the particles: 
+
+Here is our function for resampling the particles:
 
 ```python
 def resample_particles(self):
@@ -316,10 +321,9 @@ def resample_particles(self):
         self.normalize_particles()
 ```
 
-As we had mentioned before, we resample from a distribution where particles with higher weights are more likely to be sampled. We also add Gaussian noise to this step to account for uncertainty in the positions. 
+As we had mentioned before, we resample from a distribution where particles with higher weights are more likely to be sampled. We also add Gaussian noise to this step to account for uncertainty in the positions.
 
 In each iteration of the run loop, the functions are called in this order:
-
 
             self.update_particles_with_odom()            # update particle poses based on odometry
             self.update_particles_with_laser(r, theta)   # update particle weights based on laser scan
@@ -366,16 +370,18 @@ This process was relatively straight forward, but it wasn't so obvious how to co
 
 ## Challenges
 
-One Python specific challenge that arose was dealing with NaN edgecases in our code. This was especially prevelant in our initialize_particle_cloud function where the laser scan data has the possibility to contain NaNs. The challenge was that these NaNs would not throw errors in our initialize_particle_cloud function and therefore could propagate throughout our code, causing cryptic type errors to appear far down the stack. To rectify this, we added some simple isNaN checking statements in our initialize_particle_cloud function. The solution may have been straightforward, but from this oversight we learned that checking the output of a function, whether that be with print statements, or the debugger, will help reduce the search area when encountering type errors.4
+One Python specific challenge that arose was dealing with NaN edgecases in our code. This was especially prevelant in our initialize_particle_cloud function where the laser scan data has the possibility to contain NaNs. The challenge was that these NaNs would not throw errors in our initialize_particle_cloud function and therefore could propagate throughout our code, causing cryptic type errors to appear far down the stack. To rectify this, we added some simple isNaN checking statements in our initialize_particle_cloud function. The solution may have been straightforward, but from this oversight we learned that checking the output of a function, whether that be with print statements, or the debugger, will help reduce the search area when encountering type errors.
 
-## Extensions 
+Apart from python errors, we had trouble using the RVIZ simulator due to a lack of knowledge of how config files work. We could have avoided this issue by reading through the "end of the finish line" template that was given to us. We found that when exposed to new tools with long configuration processes, it was handy to keep a list of commands/actions in a text file for reference.
 
-If we had more time, or more realistically had spent our time better over the course of the project, we could have implemented more optimizations to reduce latency. Specifically, we could have used matrix multiplications in place of for-loops. We also could have used Jax to port processes to the GPU and we could have plotted the timing differences between doing computations on CPU vs GPU. We could have also used Jax to just in time compile (JIT) functions to make them faster. We could have plotted other metrics as well and wrote unit tests to ensure that our filter was working as expected in a more quantitative and less empirical way. We could have also tried the kidnapped robot problem, where we don't know where it starts initially in the map. After that extension, we could have mapped a larger area. Something else we could have tried was visualizing the filter in the map frame. 
+## Extensions
+
+If we had more time, or more realistically had spent our time better over the course of the project, we could have implemented more optimizations to reduce latency. Specifically, we could have used matrix multiplications in place of for-loops. We also could have used Jax to port processes to the GPU and we could have plotted the timing differences between doing computations on CPU vs GPU. We could have also used Jax to just in time compile (JIT) functions to make them faster. We could have plotted other metrics as well and wrote unit tests to ensure that our filter was working as expected in a more quantitative and less empirical way. We could have also tried the kidnapped robot problem, where we don't know where it starts initially in the map. After that extension, we could have mapped a larger area. Something else we could have tried was visualizing the filter in the map frame.
 
 ## Lessons
 
-Some of the lessons we learned included communicating about teaming issues as they happen rather than letting them fester. We also learned that scaffolding and planning can make it easier to accomplish goals on time. In the future we will provide more scaffolding. Additionally, we learned that asking for help and office hours are very useful. And that working through problems and math on paper helps a lot with the code implementation and checking to make sure that your programs are working as expected. 
+Some of the lessons we learned included communicating about teaming issues as they happen rather than letting them fester. We also learned that scaffolding and planning can make it easier to accomplish goals on time. In the future we will provide more scaffolding. Additionally, we learned that asking for help and office hours are very useful. And that working through problems and math on paper helps a lot with the code implementation and checking to make sure that your programs are working as expected.
 
 ![Alt Text](https://media.giphy.com/media/vFKqnCdLPNOKc/giphy.gif)
 ![Alt Text](./media/2.gif)
-![Alt Text](./media/1.png) 
+![Alt Text](./media/1.png)
