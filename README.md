@@ -247,25 +247,40 @@ This process helps in reevaluating the importance (weight) of each particle in r
         """
 
         for particle in self.particle_cloud:
+            # Accumulate error for each particle
             accumulated_error = 0
             for range_index, range in enumerate(r):
+                # Convert cartesian to polar coordinates
                 x = range * cos(theta[range_index])
                 y = range * sin(theta[range_index])
                 range_pose = np.array([x, y, 1]).T
+
+                # Convert NEATO frame laser scan to particle frame
                 particle_transform = particle.make_homogeneous_transform()
                 range_in_map = particle_transform @ range_pose
-                #print(f"range in map: {range_in_map}")
+
+                # Check if laser scan data is nan
                 if np.isnan(range_in_map[0]) or np.isnan(range_in_map[1]):
                     print("isnan")
                     continue
-                error = self.occupancy_field.get_closest_obstacle_distance(range_in_map[0], range_in_map[1])
+
+                # Get distance of particle laser scan to occupancy field
+                error = self.occupancy_field.get_closest_obstacle_distance(
+                    range_in_map[0], range_in_map[1]
+                )
+
+                # Apply a NaN penalty if error is NaN otherwise, add error
+                # to accumulated error
                 if np.isnan(error):
                     accumulated_error += self.nan_penalty
                 else:
                     accumulated_error += error
+
             assert not np.isnan(accumulated_error)
+
+            # Take inverse of accumulated error to get weight
             particle.w = 1 / accumulated_error
-        #print([particle.w for particle in self.particle_cloud])
+
         self.normalize_particles()
 ```
 
@@ -277,29 +292,40 @@ Here is our function that does this:
 
 ```python
 def update_robot_pose(self):
-        """ Update the estimate of the robot's pose given the updated particles.
-            There are two logical methods for this:
-                (1): compute the mean pose
-                (2): compute the most likely pose (i.e. the mode of the distribution)
-        """
-        # first make sure that the particle weights are normalized
-        self.normalize_particles()
+    """Update the estimate of the robot's pose given the updated particles.
+    There are two logical methods for this:
+        (1): compute the mean pose
+        (2): compute the most likely pose (i.e. the mode of the distribution)
+    """
+    # first make sure that the particle weights are normalized
+    self.normalize_particles()
 
-        # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
-        # just to get started we will fix the robot's pose to always be at the origin
+    # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
+    # just to get started we will fix the robot's pose to always be at the origin
 
-        confidences = []
-        for particle in self.particle_cloud:
-            confidences.append(particle.w)
-        max_confidence_particle_index = confidences.index(max(confidences))
-        best_particle = self.particle_cloud[max_confidence_particle_index]
-        self.robot_pose = best_particle.as_pose()
+    confidences = []
 
-        if hasattr(self, 'odom_pose'):
-            self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
-                                                            self.odom_pose)
-        else:
-            self.get_logger().warn("Can't set map->odom transform since no odom data received")
+    # Add all of the confidences of each particle in the cloud to a list
+    for particle in self.particle_cloud:
+        confidences.append(particle.w)
+
+    # Find the index of the particle with the highest confidence
+    max_confidence_particle_index = confidences.index(max(confidences))
+
+    # Index the particle cloud with the best confidence particle index
+    best_particle = self.particle_cloud[max_confidence_particle_index]
+
+    # Update the robots pose in rviz with the best particles position
+    self.robot_pose = best_particle.as_pose()
+
+    if hasattr(self, "odom_pose"):
+        self.transform_helper.fix_map_to_odom_transform(
+            self.robot_pose, self.odom_pose
+        )
+    else:
+        self.get_logger().warn(
+            "Can't set map->odom transform since no odom data received"
+        )
 ```
 
 #### Particle Resampling
@@ -316,13 +342,23 @@ def resample_particles(self):
         noise_std = 0.001
         self.normalize_particles()
         probabilities = []
+        # Make a list of all of the particle weights
         for particle in self.particle_cloud:
             probabilities.append(particle.w)
+
+        # Draw a random sample of particles from the particle cloud based off
+        # a distribution of the particle weights
         self.particle_cloud = draw_random_sample(self.particle_cloud, probabilities, self.n_particles)
+
+        # Add noise to the x, y, and theta components to each particle based off
+        # of noise standard deviation
         for particle in self.particle_cloud:
+            # Generate noise for each particle
             x_noise = np.random.normal(0.0, noise_std)
             y_noise = np.random.normal(0.0, noise_std)
             theta_noise = self.distribution_scale * np.random.normal(0.0, noise_std)
+
+            # Apply noise to each particle
             particle.x += x_noise
             particle.y += y_noise
             particle.theta += theta_noise
