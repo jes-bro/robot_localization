@@ -317,7 +317,7 @@ class ParticleFilter(Node):
         particle is selected in the resampling step.  You may want to make use of the given helper
         function draw_random_sample in helper_functions.py.
         """
-        noise_std = 0.001
+        noise_std = 0.02
         self.normalize_particles()
         probabilities = []
         # Make a list of all of the particle weights
@@ -408,7 +408,7 @@ class ParticleFilter(Node):
         # Initialize particle cloud
         self.particle_cloud = []
         # Create standard deviations for xy distributions
-        xy_standard_deviation = 0.002  # 0.1
+        xy_standard_deviation = 0.02  # 0.1
         # Create theta standard deviation for theta distribution
         theta_standard_deviation = 0.001
         # Set scale for theta distribution. We do this to make it more steep and less wide.
@@ -418,7 +418,7 @@ class ParticleFilter(Node):
         y = xy_theta[1]
         theta = xy_theta[2]
         # Create distributions / sample n_particles from them
-        self.xs = np.random.normal(x, x, self.n_particles)
+        self.xs = np.random.normal(x, xy_standard_deviation, self.n_particles)
         self.ys = np.random.normal(y, xy_standard_deviation, self.n_particles)
         self.thetas = self.distribution_scale * np.random.normal(
             theta, theta_standard_deviation, self.n_particles
