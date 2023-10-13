@@ -41,6 +41,8 @@ We use ROS 2 to handle sensor data retrieval and particle publishing.
 
 #### Initialization
 
+![Alt Text](./media/1.png)
+
 We create 3 normal distributions, each centered around the x, y, and theta values of the robots initial pose, respectively, and sampled from them to create the initial particle cloud. To generate the normal distributions we use numpy.random.normal:
 
 ```python
@@ -87,6 +89,8 @@ In each iteration of the run loop, the following functions are called:
             self.resample_particles()                    # resample particles to focus on areas of high density
 
 #### Particle location update (Update particles with odom function)
+
+![Alt Text](./media/2.gif)
 
 To calculate the particle's new location, we can create a transform that represents the robots position at a time t1 and the robots position at a time t2, construct a transform that represents the position at t2 in the t1 frame, and use that transform to take the particle's position from the t1 frame to the t2 reference frame.
 
@@ -426,5 +430,3 @@ If we had more time, or more realistically had spent our time better over the co
 
 Some of the lessons we learned included communicating about teaming issues as they happen rather than letting them fester. We also learned that scaffolding and planning can make it easier to accomplish goals on time. In the future we will provide more scaffolding. Additionally, we learned that asking for help and office hours are very useful. And that working through problems and math on paper helps a lot with the code implementation and checking to make sure that your programs are working as expected.
 
-![Alt Text](https://media.giphy.com/media/vFKqnCdLPNOKc/giphy.gif)
-![Alt Text](./media/1.png)
