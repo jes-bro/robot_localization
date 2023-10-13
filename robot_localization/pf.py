@@ -408,7 +408,7 @@ class ParticleFilter(Node):
         # Initialize particle cloud
         self.particle_cloud = []
         # Create standard deviations for xy distributions
-        xy_standard_deviation = 0.02  # 0.1
+        xy_standard_deviation = 0.04  # 0.1
         # Create theta standard deviation for theta distribution
         theta_standard_deviation = 0.001
         # Set scale for theta distribution. We do this to make it more steep and less wide.
