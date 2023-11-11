@@ -81,18 +81,18 @@ To calculate the particle's new location, we can create a transform that represe
 
 The change in odometry from t1 to t2 is computed as a difference between the current odometry $(x, y, \theta)$ and the previous odometry:
 
-$$ \Delta x = x*{\text{new}} - x*{\text{old}} $$
+$$ \Delta x = x*{\text{new}} - x*{\text{prev}} $$
 
-$$ \Delta y = y*{\text{new}} - y*{\text{old}} $$
+$$ \Delta y = y*{\text{new}} - y*{\text{prev}} $$
 
-$$ \Delta \theta = \theta*{\text{new}} - \theta*{\text{old}} $$
+$$ \Delta \theta = \theta*{\text{new}} - \theta*{\text{prev}} $$
 
-The transformation matrices for the old and new odometry are:
+The transformation matrices for the previous and new odometry are:
 
 $$
 T_{1} = \begin{bmatrix}
-\cos(\theta_{\text{old}}) & -\sin(\theta_{\text{old}}) & x_{\text{old}} \\
-\sin(\theta_{\text{old}}) & \cos(\theta_{\text{old}}) & y_{\text{old}} \\
+\cos(\theta_{\text{prev}}) & -\sin(\theta_{\text{prev}}) & x_{\text{prev}} \\
+\sin(\theta_{\text{prev}) & \cos(\theta_{\text{prev}}) & y_{\text{prev}} \\
 0 & 0 & 1
 \end{bmatrix}
 $$
