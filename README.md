@@ -129,7 +129,7 @@ $$
 
 The new state of the particle can be extracted from the updated transformation matrix.
 
-Here is the Python implementation: TODO: Add comments to this code
+Here is the Python implementation:
 
 ```python
     def update_particles_with_odom(self):
@@ -289,7 +289,6 @@ def update_robot_pose(self):
     # first make sure that the particle weights are normalized
     self.normalize_particles()
 
-    # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
     # just to get started we will fix the robot's pose to always be at the origin
 
     confidences = []
