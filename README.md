@@ -79,24 +79,16 @@ In each iteration of the run loop, the following functions are called:
 
 To calculate the particle's new location, we can create a transform that represents the robots position at a time t1 and the robots position at a time t2, construct a transform that represents the position at t2 in the t1 frame, and use that transform to take the particle's position from the t1 frame to the t2 reference frame.
 
-The change in odometry from t1 to t2 is computed as a difference between the current odometry $(x, y, \theta)$ and the previous odometry:
-
-$$ \Delta x = x*{\text{new}} - x*{\text{prev}} $$
-
-$$ \Delta y = y*{\text{new}} - y*{\text{prev}} $$
-
-$$ \Delta \theta = \theta*{\text{new}} - \theta*{\text{prev}} $$
-
 The transformation matrices for the previous and new odometry are:
 
 $$
 T_{1} = \begin{bmatrix}
 \cos(\theta_{\text{prev}}) & -\sin(\theta_{\text{prev}}) & x_{\text{prev}} \\
-\sin(\theta_{\text{prev}) & \cos(\theta_{\text{prev}}) & y_{\text{prev}} \\
+\sin(\theta_{\text{prev}}) & \cos(\theta_{\text{prev}}) & y_{\text{prev}} \\
 0 & 0 & 1
 \end{bmatrix}
 $$
-
+ 
 $$
 T_{2} = \begin{bmatrix}
 \cos(\theta_{\text{new}}) & -\sin(\theta_{\text{new}}) & x_{\text{new}} \\
